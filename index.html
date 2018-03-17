@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Maison</title>
+  <script src="js/reconnecting-websocket.min.js"></script>
+  <script src="js/speak.js"></script>
+  <script src="js/anime/anime.min.js"></script>
+  <script src="js/anime/anime.svg.js"></script>
+  <script src="js/libreconnect/libreconnect.js"></script>
+  <script src="js/backend_localstorage.js"></script>
+  <script src="settings/settings.js"></script>
+</head>
+<body style="background-color:white">
+  <div id="svgDiv">
+    <object id="svgDocument" data="doc.min.svg" type="image/svg+xml"></object>
+  </div>
+  
+  <script>    
+    illustration = document.getElementById("svgDocument");
+    
+    
+    
+    //LOCAL STORAGE
+    
+    
+    
+
+
+    // When the SVG file is loaded
+    illustration.addEventListener("load",function(){
+      svg = illustration.contentDocument;
+      
+      //illustration.style = "transform: scale(1)";
+      /*
+      Websockets
+      */
+      
+      radio433 = new LibreObject(radio433_url,password);
+      radio433.usb = new SVG_Group("radio433_usb");
+      radio433.text = new SVG_Text("radio433_data");
+      radio433.alertBox = new SVG_Group("radio433_alert_color");
+      radio433.alertBox.setLink(radio433_url.replace("wss://","https://"));
+      radio433.sendOK = function(){
+        this.state = true;
+        //console.log(this.svg);
+        //console.log(this.lastMessage);
+        if(this.lastMessage[0] == "{"){
+          for (let index = 0; index < this.svg.length; index++) {
+            let obj_message = this.svg[index].message;
+            let lastMessage = JSON.parse(this.lastMessage);
+            
+            anime({targets:this.svg[index].obj,duration:300,translateY: 0});
+            if(obj_message == lastMessage.data){
+              //console.log("OK CONFIRM");
+              this.svg.splice(index,1);
+            }
+          }
+        }
+      }
+      
+      openlight = new LibreObject(openlight_url,password);
+      openlight.usb = new SVG_Group("openlight_usb");
+      openlight.text = new SVG_Text("openlight_data");
+      openlight.alertBox = new SVG_Group("openlight_alert_color");
+      openlight.alertBox.setLink(openlight_url.replace("wss://","https://"));
+      openlight.sendOK = function(){
+        this.state = true;
+        //console.log(this);
+        for (let index = 0; index < this.svg.length; index++) {
+          let obj_message = this.svg[index].message;
+          let lastMessage = this.lastMessage;
+          obj_message = obj_message.split(",")
+          obj_message.pop();
+          obj_message = obj_message.join(",");
+          lastMessage = lastMessage.split(",")
+          lastMessage.pop();
+          lastMessage = lastMessage.join(",");
+          if(obj_message == lastMessage){
+            this.state = true;
+            anime({targets:this.svg[index].obj,duration:300,translateY: 0});
+            this.svg.splice(index,1);
+          }
+        }
+      }
+      
+      
+      temphum = new LibreObject(temphum_url,password)
+      temphum.usb = new SVG_Group("temphum_usb");
+      temphum.text = new SVG_Text("temphum_data");
+      temphum.alertBox = new SVG_Group("temphum_alert_color");
+      temphum.alertBox.setLink(temphum_url.replace("wss://","https://"));
+      function map( x,  in_min,  in_max,  out_min,  out_max){
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+      }
+      
+      temphum.sendOK = function(){
+        sensors =  this.lastMessage.split(";");
+        if(sensors.length > 1){
+          let [humidity, temperature, light] = sensors;
+          //Humidity
+          humidity_level.setHeight(humidity/100);
+          humidity_text.setText(humidity+"%");
+          
+          //Temperature
+          temperature_text.setText(temperature+"°C");
+          temperature_level.setHeight(map(temperature,-40,50,0,1));
+          
+          //Light
+          light_text.setText(light);
+          light_level.setOpacity(map(light,0,1024,0,1));
+          
+        }
+        //console.log(humidity);
+      }
+
+      function sendCode(){
+        //console.log(this);
+        data = this.getAttribute("data");
+        //console.log(data[0]);
+        if(data[0] == "0"){
+          openlight.svg.push({obj:this, message:data});
+          openlight.sendACK(data);
+          
+        }
+        if(data[0] == "/"){
+          radio433.svg.push({obj:this, message:data});
+          radio433.send(data);
+          this.state = true;
+        }
+      }
+      
+      /*
+      SVG
+      */
+      
+      unselectableText();
+      
+      const b_opacity_hover = 0.75
+      const b_speed_click = 3
+      
+      livingroom_on = new SVG_Group("livingroom_on",code_livingroom[1]);
+      livingroom_on.setAsButton(b_opacity_hover,b_speed_click);
+      livingroom_on.whenClicked(sendCode);
+      
+      livingroom_off = new SVG_Group("livingroom_off",code_livingroom[0]);
+      livingroom_off.setAsButton(b_opacity_hover,-b_speed_click);
+      livingroom_off.whenClicked(sendCode);
+      
+      bedroom_on = new SVG_Group("bedroom_on",code_bedroom[1]);
+      bedroom_on.setAsButton(b_opacity_hover,b_speed_click);
+      bedroom_on.whenClicked(sendCode);
+      bedroom_off = new SVG_Group("bedroom_off",code_bedroom[0]);
+      bedroom_off.setAsButton(b_opacity_hover,-b_speed_click);
+      bedroom_off.whenClicked(sendCode);
+      
+      kitchen_on = new SVG_Group("kitchen_on",code_kitchen[1]);
+      kitchen_on.setAsButton(b_opacity_hover,b_speed_click);
+      kitchen_on.whenClicked(sendCode);
+      
+      kitchen_off = new SVG_Group("kitchen_off",code_kitchen[0]);
+      kitchen_off.setAsButton(b_opacity_hover,-b_speed_click);
+      kitchen_off.whenClicked(sendCode);
+      
+      clock = new SVG_Text("clock");
+      date = new Date();
+      interval = 60000 - (date.getSeconds() * 1000);
+      console.log(interval);
+      setClock(interval);
+      function setClock(interval = 60000){
+        date = new Date();
+        hours = date.getHours();
+        if(hours < 10){
+          hours = "0" + hours;
+        }
+        minutes = date.getMinutes();
+        if(minutes < 10){
+          minutes = "0" + minutes;
+        }
+        
+        time = `${hours}:${minutes}`;
+        clock.setText(time);
+        setTimeout(setClock, interval);
+        console.log(time);
+        if(minutes == "00"){
+          speak("Il est " + time);
+        }
+      }
+      
+      temperature_level = new SVG_Group("temperature_level");
+      temperature_level.when("click" ,() => speak(`La température dans le salon est de ${temperature_text.text}`));
+      humidity_level = new SVG_Group("humidity_level");
+      humidity_level.when("click" ,() => speak(`L'humidité dans le salon est de ${humidity_text.text}`));
+      light_level = new SVG_Group("light_level");
+      light_level.when("click" ,() => speak(`La luminosité dans le salon est de ${light_text.text} sur 1024`));
+      temperature_text = new SVG_Text("temperature_text");
+      humidity_text = new SVG_Text("humidity_text");
+      light_text = new SVG_Text("light_text");
+      settings_button = new SVG_Group("settings_button");
+      settings_button.setAsButton(b_opacity_hover,b_speed_click);
+      settings_button.setLink("backend/");    
+    });
+  </script>
+</body>
+
+</html>
